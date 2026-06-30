@@ -1,1 +1,2 @@
 desktop_agent
+nova_core

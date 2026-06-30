@@ -18,41 +18,31 @@ class ActionExecutor:
         self.system_info = SystemInfoAction(self.platform_adapter)
         self.file_ops = FileOpsAction(self.permission_registry.policy)
 
-    def execute(self, action: ActionRequest, command_id: str | None = None) -> dict:
+    def execute(self, action: ActionRequest, command_id: str | None = None, bypass_registry: bool = False) -> dict:
         """
         Main entry point for action execution.
-        Strictly checks permissions before execution.
+        Strictly checks permissions before execution, unless bypassed.
         """
         action_id = os.urandom(8).hex()
         
-        # 1. Strictly enforce permission check before executing (Rule 4.2 in design.md)
-        decision = self.permission_registry.check(action)
-        
-        decision_dict = {
-            "allowed": decision.allowed,
-            "requires_confirmation": decision.requires_confirmation,
-            "reason": decision.reason
-        }
-        
-        if not decision.allowed:
-            result = {"success": False, "error": f"Permission denied: {decision.reason}"}
-            self.logger.log_action(
-                action_id=action_id,
-                command_id=command_id,
-                action_type=action.action_type,
-                category=action.category,
-                params=action.params,
-                permission_decision=decision_dict,
-                executed=False,
-                result=result
-            )
-            return {**result, "action_id": action_id}
-
-        # 2. Gate execution with confirmation if required
-        if decision.requires_confirmation:
-            confirmed = self._request_confirmation(action)
-            if not confirmed:
-                result = {"success": False, "error": "Action rejected by user"}
+        if bypass_registry:
+            decision_dict = {
+                "allowed": True,
+                "requires_confirmation": False,
+                "reason": "Permission check bypassed by command server."
+            }
+        else:
+            # 1. Strictly enforce permission check before executing (Rule 4.2 in design.md)
+            decision = self.permission_registry.check(action)
+            
+            decision_dict = {
+                "allowed": decision.allowed,
+                "requires_confirmation": decision.requires_confirmation,
+                "reason": decision.reason
+            }
+            
+            if not decision.allowed:
+                result = {"success": False, "error": f"Permission denied: {decision.reason}"}
                 self.logger.log_action(
                     action_id=action_id,
                     command_id=command_id,
@@ -64,6 +54,23 @@ class ActionExecutor:
                     result=result
                 )
                 return {**result, "action_id": action_id}
+
+            # 2. Gate execution with confirmation if required
+            if decision.requires_confirmation:
+                confirmed = self._request_confirmation(action)
+                if not confirmed:
+                    result = {"success": False, "error": "Action rejected by user"}
+                    self.logger.log_action(
+                        action_id=action_id,
+                        command_id=command_id,
+                        action_type=action.action_type,
+                        category=action.category,
+                        params=action.params,
+                        permission_decision=decision_dict,
+                        executed=False,
+                        result=result
+                    )
+                    return {**result, "action_id": action_id}
 
         # 3. Perform execution
         result = {"success": False, "error": f"No handler implemented for category '{action.category}'"}

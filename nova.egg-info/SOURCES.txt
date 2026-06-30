@@ -10,6 +10,7 @@ desktop_agent/actions/__init__.py
 desktop_agent/actions/app_control.py
 desktop_agent/actions/file_ops.py
 desktop_agent/actions/system_info.py
+desktop_agent/client/core_client.py
 desktop_agent/platform/__init__.py
 desktop_agent/platform/base.py
 desktop_agent/platform/linux_adapter.py
@@ -20,3 +21,18 @@ nova.egg-info/SOURCES.txt
 nova.egg-info/dependency_links.txt
 nova.egg-info/requires.txt
 nova.egg-info/top_level.txt
+nova_core/__init__.py
+nova_core/main.py
+nova_core/permission_registry.py
+nova_core/api/__init__.py
+nova_core/api/routes_capabilities.py
+nova_core/api/routes_command.py
+nova_core/api/routes_policy.py
+nova_core/db/store.py
+nova_core/models/__init__.py
+nova_core/models/action.py
+nova_core/models/command.py
+nova_core/models/device.py
+nova_core/router/hybrid_router.py
+nova_core/router/llm_client.py
+nova_core/ws/connection_manager.py

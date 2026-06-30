@@ -1,0 +1,51 @@
+# policy.yaml — human-editable permission policy for desktop agent
+categories:
+  read_only_info:
+    confirmation: none
+    actions:
+      - get_battery
+      - get_location
+      - get_calendar
+      - list_running_apps
+      - get_system_info
+
+  app_control:
+    confirmation: none
+    whitelist:
+      - name: "notepad"
+        executable: "notepad.exe"
+      - name: "calc"
+        executable: "calc.exe"
+      - name: "vscode"
+        executable: "code"
+    # Anything not in the whitelist falls through to "confirm" by default,
+    # never to silent execution.
+    default_confirmation: confirm
+
+  communication:
+    confirmation: confirm
+    actions:
+      - send_whatsapp
+      - send_sms
+      - send_email
+
+  file_system:
+    read:
+      confirmation: none
+      allowed_paths:
+        - "~/Documents"
+        - "~/Downloads"
+    write:
+      confirmation: confirm
+      allowed_paths:
+        - "~/Documents/nova-workspace"
+    delete:
+      confirmation: confirm
+      allowed_paths:
+        - "~/Documents/nova-workspace"
+
+  shell_command:
+    confirmation: always_explicit   # cannot be set to "none" — enforced in code, not just config
+    actions:
+      - run_script
+      - install_package
