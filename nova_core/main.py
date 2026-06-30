@@ -13,6 +13,7 @@ from nova_core.api.routes_capabilities import router as cap_router
 from nova_core.api.routes_policy import router as policy_router
 from nova_core.api.routes_history import router as history_router
 from nova_core.api.routes_automation import router as auto_router
+from nova_core.api.routes_event import router as event_router
 import uvicorn
 import logging
 
@@ -46,6 +47,7 @@ app.include_router(cap_router)
 app.include_router(policy_router)
 app.include_router(history_router)
 app.include_router(auto_router)
+app.include_router(event_router)
 
 @app.on_event("startup")
 async def startup_event():
