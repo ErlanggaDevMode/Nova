@@ -1,21 +1,25 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import asyncio
+import datetime
 from nova_core.ws.connection_manager import ConnectionManager
 from nova_core.db.store import DatabaseStore
 from nova_core.permission_registry import PermissionRegistry
 from nova_core.router.hybrid_router import HybridRouter
 from nova_core.context.context_store import ContextStore
 from nova_core.presence.presence_tracker import PresenceTracker
+from nova_core.automation import RulesStore, AutomationEngine
 from nova_core.api.routes_command import router as command_router
 from nova_core.api.routes_capabilities import router as cap_router
 from nova_core.api.routes_policy import router as policy_router
 from nova_core.api.routes_history import router as history_router
+from nova_core.api.routes_automation import router as auto_router
 import uvicorn
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("nova.core")
 
-app = FastAPI(title="Nova Core Server", version="0.3.0")
+app = FastAPI(title="Nova Core Server", version="0.4.0")
 
 # Initialize and attach states
 store = DatabaseStore()
@@ -24,6 +28,8 @@ registry = PermissionRegistry()
 context_store = ContextStore(store)
 router_engine = HybridRouter()
 presence_tracker = PresenceTracker(store, manager)
+rules_store = RulesStore(store)
+auto_engine = AutomationEngine(store, rules_store, registry, manager)
 
 app.state.store = store
 app.state.manager = manager
@@ -31,12 +37,37 @@ app.state.registry = registry
 app.state.context_store = context_store
 app.state.router = router_engine
 app.state.presence = presence_tracker
+app.state.rules_store = rules_store
+app.state.automation = auto_engine
 
 # Include REST routes
 app.include_router(command_router)
 app.include_router(cap_router)
 app.include_router(policy_router)
 app.include_router(history_router)
+app.include_router(auto_router)
+
+@app.on_event("startup")
+async def startup_event():
+    # Start background tick loop for periodic automation triggers
+    async def run_ticks():
+        tick = 0
+        logger.info("Automation background tick evaluation loop started.")
+        while True:
+            await asyncio.sleep(60)
+            tick += 1
+            now = datetime.datetime.now()
+            event = {
+                "type": "time",
+                "time_of_day": now.strftime("%H:%M"),
+                "tick_counter": tick
+            }
+            try:
+                await app.state.automation.evaluate_and_fire(event)
+            except Exception as e:
+                logger.error(f"Automation tick evaluation failure: {e}")
+
+    asyncio.create_task(run_ticks())
 
 @app.websocket("/ws/{device_id}")
 async def websocket_endpoint(websocket: WebSocket, device_id: str):
