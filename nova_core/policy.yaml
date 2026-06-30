@@ -49,3 +49,9 @@ categories:
     actions:
       - run_script
       - install_package
+
+  smart_home:
+    confirmation: none
+    actions:
+      - tuya_control_device
+

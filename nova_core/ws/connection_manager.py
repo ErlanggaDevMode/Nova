@@ -22,6 +22,20 @@ class ConnectionManager:
         """
         Dispatches an action to a connected client and waits for the result.
         """
+        if action.action_type == "tuya_control_device":
+            try:
+                from nova_core.integrations.smart_home.tuya import TuyaClient
+                client = TuyaClient()
+                params = action.params
+                res = client.send_device_command(
+                    device_id=params.get("device_id", ""),
+                    command_name=params.get("command_name", ""),
+                    value=params.get("value", False)
+                )
+                return res
+            except Exception as e:
+                return {"success": False, "error": f"Tuya execution error: {str(e)}"}
+
         if device_id not in self.active_connections:
             return {"success": False, "error": f"Device '{device_id}' is not connected."}
 

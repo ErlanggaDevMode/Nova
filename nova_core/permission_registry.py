@@ -52,12 +52,29 @@ class PermissionRegistry:
             return self._check_communication(action, cat_policy)
         elif category == "file_system":
             return self._check_file_system(action, cat_policy)
+        elif category == "smart_home":
+            return self._check_smart_home(action, cat_policy)
 
         # Default fallback: deny if category logic isn't explicitly implemented
         return PermissionDecision(
             allowed=False,
             requires_confirmation=False,
             reason=f"Permission check for category '{category}' is not implemented."
+        )
+
+    def _check_smart_home(self, action: ActionRequest, policy: dict) -> PermissionDecision:
+        allowed_actions = policy.get("actions", [])
+        if action.action_type not in allowed_actions:
+            return PermissionDecision(
+                allowed=False,
+                requires_confirmation=False,
+                reason=f"Action '{action.action_type}' is not an allowed smart home action."
+            )
+        confirm_level = policy.get("confirmation", "none")
+        return PermissionDecision(
+            allowed=True,
+            requires_confirmation=(confirm_level != "none"),
+            reason="Smart home action allowed."
         )
 
     def _check_app_control(self, action: ActionRequest, policy: dict) -> PermissionDecision:

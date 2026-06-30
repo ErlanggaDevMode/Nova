@@ -1,1 +1,30 @@
+# Existing rule
 docs/*.md
+
+# Python local build caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.egg-info/
+nova.egg-info/
+build/
+dist/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+
+# Database files
+*.db
+nova.db
+nova.db-journal
+
+# Environment config files
+.env
+.env.local
+.env.*.local

@@ -101,6 +101,19 @@ TOOLS = [
           },
           "required": ["package"]
         }
+    },
+    {
+        "name": "tuya_control_device",
+        "description": "Sends control commands (e.g. turn on, turn off) to a Tuya smart home device.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "device_id": {"type": "string", "description": "The target Tuya device ID."},
+                "command_name": {"type": "string", "description": "Command name (e.g., 'switch_led')."},
+                "value": {"type": "boolean", "description": "True to turn on, False to turn off."}
+            },
+            "required": ["device_id", "command_name", "value"]
+        }
     }
 ]
 
@@ -113,6 +126,8 @@ def map_action_to_category(action_type: str) -> str:
         return "file_system"
     elif action_type in ("run_script", "install_package"):
         return "shell_command"
+    elif action_type == "tuya_control_device":
+        return "smart_home"
     return "unknown"
 
 class LLMClient:
@@ -144,7 +159,7 @@ class LLMClient:
         if context_store:
             context_summary = context_store.get_system_prompt_context()
 
-        if not self.api_key:
+        if not self.api_key and self.provider != "ollama":
             logger.warning("LLM API key is missing. Using stub fallback reasoning.")
             return self._mock_fallback(command, source_device_id, context_store)
 
@@ -153,11 +168,17 @@ class LLMClient:
                 return self._call_anthropic(command, source_device_id, context_summary)
             elif self.provider in ("openrouter", "nvidia"):
                 return self._call_openai_compatible(command, source_device_id, context_summary)
+            elif self.provider == "ollama":
+                return self._call_ollama(command, source_device_id, context_summary)
             else:
                 raise ValueError(f"Unsupported LLM provider '{self.provider}'")
         except Exception as e:
-            logger.error(f"LLM query error: {e}")
-            return None, f"LLM error: {str(e)}"
+            logger.warning(f"Primary LLM provider '{self.provider}' failed: {e}. Falling back to local Ollama.")
+            try:
+                return self._call_ollama(command, source_device_id, context_summary)
+            except Exception as ex:
+                logger.error(f"Local Ollama fallback failed: {ex}. Using stub fallback.")
+                return self._mock_fallback(command, source_device_id, context_store)
 
     def _call_anthropic(self, command: str, source_device_id: str, context_summary: str = "") -> Tuple[Optional[ActionRequest], Optional[str]]:
         import anthropic
@@ -346,6 +367,16 @@ class LLMClient:
                 source_device_id=source_device_id,
                 origin="cloud_llm"
             ), None
+            
+        elif "turn on" in cmd or "turn off" in cmd or "light" in cmd or "switch" in cmd:
+            value = "turn on" in cmd or "on" in cmd
+            return ActionRequest(
+                action_type="tuya_control_device",
+                category="smart_home",
+                params={"device_id": "mock_tuya_light_1", "command_name": "switch_led", "value": value},
+                source_device_id=source_device_id,
+                origin="cloud_llm"
+            ), None
 
         context_info = ""
         if context_store:
@@ -354,3 +385,54 @@ class LLMClient:
         if context_info:
             msg += f"\nActive Context: {context_info}"
         return None, msg
+
+    def _call_ollama(self, command: str, source_device_id: str, context_summary: str = "") -> Tuple[Optional[ActionRequest], Optional[str]]:
+        from openai import OpenAI
+        import json
+        api_base = os.environ.get("LOCAL_LLM_URL", "http://localhost:11434/v1")
+        model = os.environ.get("LOCAL_LLM_MODEL", "llama3")
+        
+        # Uses standard OpenAI interface targeted at Ollama client base
+        client = OpenAI(api_key="ollama", base_url=api_base)
+        
+        openai_tools = []
+        for t in TOOLS:
+            openai_tools.append({
+                "type": "function",
+                "function": {
+                    "name": t["name"],
+                    "description": t["description"],
+                    "parameters": t["parameters"]
+                }
+            })
+
+        system_prompt = "You are Nova, Erlangga's cross-device agent assistant. Translate request into function calls where appropriate."
+        if context_summary:
+            system_prompt += "\n" + context_summary
+
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": command}
+            ],
+            tools=openai_tools,
+            tool_choice="auto"
+        )
+
+        choice = response.choices[0]
+        resp_text = choice.message.content
+        action_req = None
+
+        if choice.message.tool_calls:
+            tool_call = choice.message.tool_calls[0]
+            params = json.loads(tool_call.function.arguments)
+            action_req = ActionRequest(
+                action_type=tool_call.function.name,
+                category=map_action_to_category(tool_call.function.name),
+                params=params,
+                source_device_id=source_device_id,
+                origin="cloud_llm"
+            )
+
+        return action_req, resp_text
