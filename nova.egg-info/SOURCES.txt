@@ -28,6 +28,7 @@ nova_core/api/__init__.py
 nova_core/api/routes_automation.py
 nova_core/api/routes_capabilities.py
 nova_core/api/routes_command.py
+nova_core/api/routes_event.py
 nova_core/api/routes_history.py
 nova_core/api/routes_policy.py
 nova_core/automation/__init__.py

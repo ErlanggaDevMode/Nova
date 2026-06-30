@@ -1,23 +1,107 @@
+import os
 import sqlite3
 import json
 from pathlib import Path
 from datetime import datetime, timezone
 
+class PGConnectionWrapper:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            self.conn.rollback()
+        else:
+            self.conn.commit()
+        self.conn.close()
+
+    def execute(self, sql, params=None):
+        # Translate SQLite ? placeholders to PostgreSQL %s placeholders
+        sql = sql.replace("?", "%s")
+        # Replace SQLite INSERT OR REPLACE with ON CONFLICT (if any)
+        if "INSERT OR REPLACE" in sql:
+            # We enforce standard ON CONFLICT instead of INSERT OR REPLACE in the stores directly,
+            # but we can translate as a safety net if needed.
+            pass
+        cursor = self.conn.cursor()
+        cursor.execute(sql, params or ())
+        return PGCursorWrapper(cursor)
+
+    def executescript(self, sql_script):
+        cursor = self.conn.cursor()
+        cursor.execute(sql_script)
+
+class PGCursorWrapper:
+    def __init__(self, cursor):
+        self.cursor = cursor
+
+    def fetchone(self):
+        row = self.cursor.fetchone()
+        if row is None:
+            return None
+        colnames = [desc[0] for desc in self.cursor.description]
+        return dict(zip(colnames, row))
+
+    def fetchall(self):
+        rows = self.cursor.fetchall()
+        if not rows:
+            return []
+        colnames = [desc[0] for desc in self.cursor.description]
+        return [dict(zip(colnames, row)) for row in rows]
+
+class SQLiteConnectionWrapper:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            self.conn.rollback()
+        else:
+            self.conn.commit()
+        self.conn.close()
+
+    def execute(self, sql, params=None):
+        if params is not None:
+            return self.conn.execute(sql, params)
+        return self.conn.execute(sql)
+
+    def executescript(self, sql_script):
+        self.conn.executescript(sql_script)
+
 class DatabaseStore:
     def __init__(self, db_path: Path | str | None = None):
-        if db_path is None:
-            # Default to nova.db in the workspace root
-            db_path = Path(__file__).parent.parent.parent / "nova.db"
-        self.db_path = Path(db_path)
+        self.db_type = os.getenv("DB_TYPE", "sqlite").lower()
+        self.db_url = os.getenv("DATABASE_URL", "")
+
+        if self.db_type == "sqlite":
+            if db_path is None:
+                db_path = Path(__file__).parent.parent.parent / "nova.db"
+            self.db_path = Path(db_path)
+        else:
+            self.db_path = None
+
         self.init_db()
 
-    def get_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def get_connection(self):
+        if self.db_type == "postgresql":
+            import psycopg2
+            conn = psycopg2.connect(self.db_url)
+            return PGConnectionWrapper(conn)
+        else:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            return SQLiteConnectionWrapper(conn)
 
     def init_db(self):
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        if self.db_type == "sqlite":
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            
         schema_path = Path(__file__).parent / "schema.sql"
         with open(schema_path, "r", encoding="utf-8") as f:
             schema_sql = f.read()
@@ -25,7 +109,7 @@ class DatabaseStore:
         with self.get_connection() as conn:
             conn.executescript(schema_sql)
 
-        # Run any migrations in the migrations/ folder
+        # Run migrations
         migrations_dir = Path(__file__).parent / "migrations"
         if migrations_dir.exists():
             for migration_file in sorted(migrations_dir.glob("*.sql")):

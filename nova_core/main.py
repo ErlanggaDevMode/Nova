@@ -1,6 +1,9 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import asyncio
 import datetime
+from pathlib import Path
 from nova_core.ws.connection_manager import ConnectionManager
 from nova_core.db.store import DatabaseStore
 from nova_core.permission_registry import PermissionRegistry
@@ -8,19 +11,24 @@ from nova_core.router.hybrid_router import HybridRouter
 from nova_core.context.context_store import ContextStore
 from nova_core.presence.presence_tracker import PresenceTracker
 from nova_core.automation import RulesStore, AutomationEngine
+from nova_core.auth import get_current_user, verify_access_token
+
+# Import routers
 from nova_core.api.routes_command import router as command_router
 from nova_core.api.routes_capabilities import router as cap_router
 from nova_core.api.routes_policy import router as policy_router
 from nova_core.api.routes_history import router as history_router
 from nova_core.api.routes_automation import router as auto_router
 from nova_core.api.routes_event import router as event_router
+from nova_core.api.routes_auth import router as auth_router
+
 import uvicorn
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("nova.core")
 
-app = FastAPI(title="Nova Core Server", version="0.4.0")
+app = FastAPI(title="Nova Core Server", version="0.5.0")
 
 # Initialize and attach states
 store = DatabaseStore()
@@ -41,13 +49,23 @@ app.state.presence = presence_tracker
 app.state.rules_store = rules_store
 app.state.automation = auto_engine
 
-# Include REST routes
-app.include_router(command_router)
-app.include_router(cap_router)
-app.include_router(policy_router)
-app.include_router(history_router)
-app.include_router(auto_router)
-app.include_router(event_router)
+# Include open auth routes
+app.include_router(auth_router)
+
+# Include protected REST routes
+app.include_router(command_router, dependencies=[Depends(get_current_user)])
+app.include_router(cap_router, dependencies=[Depends(get_current_user)])
+app.include_router(policy_router, dependencies=[Depends(get_current_user)])
+app.include_router(history_router, dependencies=[Depends(get_current_user)])
+app.include_router(auto_router, dependencies=[Depends(get_current_user)])
+app.include_router(event_router, dependencies=[Depends(get_current_user)])
+
+# Expose open static dashboard assets
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "web"), name="static")
+
+@app.get("/")
+async def get_dashboard():
+    return FileResponse(Path(__file__).parent / "web" / "index.html")
 
 @app.on_event("startup")
 async def startup_event():
@@ -73,13 +91,25 @@ async def startup_event():
 
 @app.websocket("/ws/{device_id}")
 async def websocket_endpoint(websocket: WebSocket, device_id: str):
+    # Perform JWT check from query params
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.accept()
+        await websocket.close(code=4001, reason="Authentication token missing")
+        return
+    try:
+        verify_access_token(token)
+    except Exception:
+        await websocket.accept()
+        await websocket.close(code=4002, reason="Authentication failed")
+        return
+
     manager_inst: ConnectionManager = app.state.manager
     store_inst: DatabaseStore = app.state.store
     presence_inst: PresenceTracker = app.state.presence
     
     device = store_inst.get_device(device_id)
     if not device:
-        # Register a fallback device profile if not registered via REST
         store_inst.register_device(device_id, f"Device {device_id[:4]}", "desktop", {})
         
     await manager_inst.connect(device_id, websocket)

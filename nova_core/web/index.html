@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nova Orchestrator Dashboard</title>
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-container" class="glass-container">
+        <h1>Nova Access</h1>
+        <p class="subtitle">Personal Daily-Driver Orchestrator</p>
+        <form id="login-form">
+            <input type="password" id="admin-password" placeholder="Enter Admin Password" required autocomplete="current-password">
+            <button type="submit" class="glow-button">Authenticate</button>
+        </form>
+        <p id="login-error" class="error-msg hidden">Invalid password. Please retry.</p>
+    </div>
+
+    <!-- Dashboard Container (Hidden by default) -->
+    <div id="dashboard-container" class="hidden">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <span class="logo-icon">▲</span> Nova Core
+            </div>
+            <nav class="nav-menu">
+                <button class="nav-item active" data-tab="overview">Overview</button>
+                <button class="nav-item" data-tab="rules">Automation Rules</button>
+                <button class="nav-item" data-tab="history">Command Logs</button>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="logout-btn" class="logout-button">Disconnect</button>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="workspace">
+            <!-- Header bar -->
+            <header class="workspace-header">
+                <h2 id="current-tab-title">Overview</h2>
+                <div class="status-bar">
+                    <span class="status-indicator online"></span> Core Server Online
+                </div>
+            </header>
+
+            <!-- Tab 1: Overview Workspace -->
+            <section id="tab-overview" class="tab-content active">
+                <div class="dashboard-grid">
+                    <!-- Console Command Box -->
+                    <div class="card glass-card span-2">
+                        <h3>Interactive Console</h3>
+                        <div id="console-logs" class="console-box"></div>
+                        <form id="console-form" class="console-input-row">
+                            <input type="text" id="console-input" placeholder="Type a natural language instruction..." autocomplete="off">
+                            <button type="submit" class="action-button">Execute</button>
+                        </form>
+                    </div>
+
+                    <!-- Context and Devices State -->
+                    <div class="card glass-card">
+                        <h3>Active Context</h3>
+                        <div id="context-list" class="context-list">
+                            <p class="empty-msg">No active contexts found.</p>
+                        </div>
+                    </div>
+
+                    <!-- Presence Tracking -->
+                    <div class="card glass-card">
+                        <h3>Device Presence</h3>
+                        <div id="device-list" class="device-list">
+                            <p class="empty-msg">No active devices registered.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab 2: Automation Rules Workspace -->
+            <section id="tab-rules" class="tab-content hidden">
+                <div class="rules-workspace">
+                    <div class="card glass-card">
+                        <h3>Configure Automation Rule</h3>
+                        <form id="rule-form" class="form-grid">
+                            <div class="form-group">
+                                <label for="rule-name">Rule Name</label>
+                                <input type="text" id="rule-name" placeholder="e.g. Battery Check Notification" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="trigger-type">Trigger Type</label>
+                                <select id="trigger-type" required>
+                                    <option value="time">Time Trigger</option>
+                                    <option value="notification">Notification Trigger</option>
+                                    <option value="weather">Weather Trigger</option>
+                                </select>
+                            </div>
+
+                            <!-- Dynamic Trigger Condition Fields -->
+                            <div id="condition-fields" class="form-group span-2">
+                                <label>Condition Parameter</label>
+                                <!-- Rendered dynamically based on Trigger Type selection -->
+                                <div id="time-params">
+                                    <input type="number" id="interval-minutes" placeholder="Check Interval (Minutes)" min="1">
+                                </div>
+                                <div id="notification-params" class="hidden">
+                                    <input type="text" id="notification-source" placeholder="Source App (e.g. com.whatsapp)">
+                                    <input type="text" id="notification-contains" placeholder="Text Content Match Filter">
+                                </div>
+                            </div>
+
+                            <div class="form-group span-2">
+                                <label>Action Template</label>
+                                <div class="template-row">
+                                    <input type="text" id="action-type" placeholder="Action Type (e.g. get_battery)" required>
+                                    <input type="text" id="action-category" placeholder="Category (e.g. read_only_info)" required>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="glow-button span-2">Add Automation Rule</button>
+                        </form>
+                    </div>
+
+                    <!-- Rules List -->
+                    <div class="card glass-card">
+                        <h3>Active Rules</h3>
+                        <div id="rules-list" class="rules-list">
+                            <p class="empty-msg">No active rules compiled.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab 3: Logs workspace -->
+            <section id="tab-history" class="tab-content hidden">
+                <div class="card glass-card">
+                    <h3>Command Execution Log</h3>
+                    <div class="table-container">
+                        <table class="history-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Source</th>
+                                    <th>Instruction</th>
+                                    <th>Route</th>
+                                    <th>Execution Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body">
+                                <tr>
+                                    <td colspan="5" class="empty-msg">No commands tracked in database.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>
