@@ -25,6 +25,15 @@ class DatabaseStore:
         with self.get_connection() as conn:
             conn.executescript(schema_sql)
 
+        # Run any migrations in the migrations/ folder
+        migrations_dir = Path(__file__).parent / "migrations"
+        if migrations_dir.exists():
+            for migration_file in sorted(migrations_dir.glob("*.sql")):
+                with open(migration_file, "r", encoding="utf-8") as f:
+                    migration_sql = f.read()
+                with self.get_connection() as conn:
+                    conn.executescript(migration_sql)
+
     def register_device(self, device_id: str, name: str, platform: str, capabilities: dict) -> None:
         sql = """
         INSERT INTO devices (id, name, platform, capabilities, last_seen_at)

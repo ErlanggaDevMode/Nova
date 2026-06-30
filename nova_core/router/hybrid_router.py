@@ -7,7 +7,7 @@ class HybridRouter:
         self.intent_matcher = IntentMatcher()
         self.llm_client = llm_client or LLMClient()
 
-    def route_command(self, command: str, source_device_id: str) -> RoutedResult:
+    def route_command(self, command: str, source_device_id: str, context_store = None) -> RoutedResult:
         """
         Routes the command to local regex patterns or falls back to LLM.
         """
@@ -35,7 +35,7 @@ class HybridRouter:
             )
 
         # Fallback to Cloud LLM
-        action_request, response_text = self.llm_client.query(command, source_device_id)
+        action_request, response_text = self.llm_client.query(command, source_device_id, context_store)
         return RoutedResult(
             path="cloud",
             intent=None,

@@ -24,4 +24,4 @@ def test_hybrid_router_cloud_fallback():
     assert result.path == "cloud"
     assert result.action_request is None
     assert result.response_text == "Mock conversational response"
-    llm_mock.query.assert_called_once_with("summarize my email", "test_device")
+    llm_mock.query.assert_called_once_with("summarize my email", "test_device", None)

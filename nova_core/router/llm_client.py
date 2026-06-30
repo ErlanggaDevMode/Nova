@@ -134,28 +134,32 @@ class LLMClient:
             elif self.provider == "nvidia":
                 self.model = "meta/llama-3.1-405b-instruct"
 
-    def query(self, command: str, source_device_id: str) -> Tuple[Optional[ActionRequest], Optional[str]]:
+    def query(self, command: str, source_device_id: str, context_store = None) -> Tuple[Optional[ActionRequest], Optional[str]]:
         """
         Sends a command to the cloud LLM using tool calling.
         Returns a tuple: (ActionRequest or None, response_text or None).
         Falls back to stub mock behavior if no api_key is configured.
         """
+        context_summary = ""
+        if context_store:
+            context_summary = context_store.get_system_prompt_context()
+
         if not self.api_key:
             logger.warning("LLM API key is missing. Using stub fallback reasoning.")
-            return self._mock_fallback(command, source_device_id)
+            return self._mock_fallback(command, source_device_id, context_store)
 
         try:
             if self.provider == "anthropic":
-                return self._call_anthropic(command, source_device_id)
+                return self._call_anthropic(command, source_device_id, context_summary)
             elif self.provider in ("openrouter", "nvidia"):
-                return self._call_openai_compatible(command, source_device_id)
+                return self._call_openai_compatible(command, source_device_id, context_summary)
             else:
                 raise ValueError(f"Unsupported LLM provider '{self.provider}'")
         except Exception as e:
             logger.error(f"LLM query error: {e}")
             return None, f"LLM error: {str(e)}"
 
-    def _call_anthropic(self, command: str, source_device_id: str) -> Tuple[Optional[ActionRequest], Optional[str]]:
+    def _call_anthropic(self, command: str, source_device_id: str, context_summary: str = "") -> Tuple[Optional[ActionRequest], Optional[str]]:
         import anthropic
         client = anthropic.Anthropic(api_key=self.api_key)
         
@@ -168,10 +172,14 @@ class LLMClient:
                 "input_schema": t["parameters"]
             })
 
+        system_prompt = "You are Nova, Erlangga's cross-device agent assistant. Translate request into function calls where appropriate."
+        if context_summary:
+            system_prompt += "\n" + context_summary
+
         response = client.messages.create(
             model=self.model,
             max_tokens=1024,
-            system="You are Nova, Erlangga's cross-device agent assistant. Translate request into function calls where appropriate.",
+            system=system_prompt,
             messages=[{"role": "user", "content": command}],
             tools=anthropic_tools
         )
@@ -193,7 +201,7 @@ class LLMClient:
 
         return action_req, resp_text
 
-    def _call_openai_compatible(self, command: str, source_device_id: str) -> Tuple[Optional[ActionRequest], Optional[str]]:
+    def _call_openai_compatible(self, command: str, source_device_id: str, context_summary: str = "") -> Tuple[Optional[ActionRequest], Optional[str]]:
         from openai import OpenAI
         
         base_url = self.api_base if self.api_base else None
@@ -210,10 +218,14 @@ class LLMClient:
                 }
             })
 
+        system_prompt = "You are Nova, Erlangga's cross-device agent assistant. Translate request into function calls where appropriate."
+        if context_summary:
+            system_prompt += "\n" + context_summary
+
         response = client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": "You are Nova, Erlangga's cross-device agent assistant. Translate request into function calls where appropriate."},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": command}
             ],
             tools=openai_tools,
@@ -238,7 +250,7 @@ class LLMClient:
 
         return action_req, resp_text
 
-    def _mock_fallback(self, command: str, source_device_id: str) -> Tuple[Optional[ActionRequest], Optional[str]]:
+    def _mock_fallback(self, command: str, source_device_id: str, context_store = None) -> Tuple[Optional[ActionRequest], Optional[str]]:
         cmd = command.strip().lower()
 
         # Check keyword matches to trigger stubs
@@ -335,4 +347,10 @@ class LLMClient:
                 origin="cloud_llm"
             ), None
 
-        return None, f"Nova cloud reasoning stub response. I received: '{command}'."
+        context_info = ""
+        if context_store:
+            context_info = context_store.get_system_prompt_context()
+        msg = f"Nova cloud reasoning stub response. I received: '{command}'."
+        if context_info:
+            msg += f"\nActive Context: {context_info}"
+        return None, msg

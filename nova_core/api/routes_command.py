@@ -21,7 +21,7 @@ async def submit_command(payload: CommandSubmission, request: Request):
     command_id = os.urandom(8).hex()
 
     # 1. Route the command (local vs cloud)
-    routed: RoutedResult = router_engine.route_command(payload.raw_text, payload.source_device_id)
+    routed: RoutedResult = router_engine.route_command(payload.raw_text, payload.source_device_id, app.state.context_store)
     
     # Log the command in the DB
     store.log_command(command_id, payload.raw_text, payload.source_device_id, routed.path)
