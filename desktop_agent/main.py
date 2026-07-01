@@ -162,5 +162,8 @@ def run_loop():
                 res.get("result", {})
             )
 
-if __name__ == "__main__":
+def main():
     run_loop()
+
+if __name__ == "__main__":
+    main()

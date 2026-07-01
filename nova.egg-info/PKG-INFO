@@ -19,3 +19,131 @@ Requires-Dist: pyjwt>=2.4.0
 Requires-Dist: psycopg2-binary>=2.9.0
 Provides-Extra: test
 Requires-Dist: pytest>=7.0.0; extra == "test"
+
+# Nova — Cross-Device AI Assistant & Orchestrator
+
+Nova is a personal daily-driver, cross-device AI assistant orchestrator built to coordinate desktop system controls, Android services, and smart home automations from a centralized, secure Python hub.
+
+---
+
+## 🛠️ Tech Stack & Architecture
+
+```mermaid
+graph TD
+    subgraph Clients ["Device Clients"]
+        CLI[Desktop Client - Python CLI]
+        Andr[Android Client - Kotlin Compose]
+        Web[Web Dashboard - Glassmorphic SPA]
+    end
+
+    subgraph Core ["Nova Core Server"]
+        Router[Hybrid AI Router]
+        Auth[JWT Token Security Gate]
+        Registry[Permission Registry - policy.yaml]
+        Engine[Automation Engine]
+        DB[(SQLite / PostgreSQL Store)]
+    end
+
+    subgraph External ["Services & Fallbacks"]
+        CloudLLM[Cloud LLM - Anthropic/OpenRouter/NIM]
+        LocalLLM[Local LLM - Ollama]
+        Tuya[Tuya Smart Home API]
+    end
+
+    CLI <-->|HTTP/WS| Auth
+    Andr <-->|HTTP/WS| Auth
+    Web <-->|HTTP/WS| Auth
+
+    Auth --> Router
+    Router --> Registry
+    Registry --> DB
+    Engine --> Registry
+
+    Router -->|Cloud Request| CloudLLM
+    Router -->|Offline Failover| LocalLLM
+    Engine -->|Trigger Commands| Tuya
+```
+
+* **Nova Core Server**: Built with FastAPI. Coordinates active contexts, presence status, commands routing, token logins, and automation tick evaluations.
+* **Desktop Agent Client**: A thin Python wrapper running actions locally using platform-specific adapters (`psutil`, `pyautogui`, shell).
+* **Android Kotlin Client**: Features Jetpack Compose layouts, background keep-alives, Speech-to-Text command triggers, and notification Accessibility Services.
+* **Web Dashboard SPA**: Serves a dark-themed glassmorphism console layout showing metrics, live WebSocket log outputs, and rule configuration forms.
+
+---
+
+## 🔑 How to Set AI API Keys
+
+Configuration parameters are loaded from a `.env` file at the root of the workspace directory. Run the `setup.bat` script to automatically scaffold the file, and then edit the following keys:
+
+### 1. Anthropic API (Default)
+```env
+LLM_PROVIDER=anthropic
+LLM_API_KEY=sk-ant-api53-xxx...
+LLM_MODEL=claude-3-5-sonnet-20241022
+```
+
+### 2. OpenRouter API
+```env
+LLM_PROVIDER=openrouter
+LLM_API_KEY=sk-or-v1-xxx...
+LLM_API_BASE=https://openrouter.ai/api/v1
+LLM_MODEL=anthropic/claude-3.5-sonnet
+```
+
+### 3. NVIDIA NIM API
+```env
+LLM_PROVIDER=nvidia
+LLM_API_KEY=nvapi-xxx...
+LLM_API_BASE=https://integrate.api.nvidia.com/v1
+LLM_MODEL=meta/llama-3.1-405b-instruct
+```
+
+### 4. Local Ollama Fallback (Offline Mode)
+If cloud requests fail or the device goes offline, Nova automatically falls back to your local Ollama instance:
+```env
+LOCAL_LLM_URL=http://localhost:11434/v1
+LOCAL_LLM_MODEL=llama3
+```
+
+---
+
+## 🚀 Quick Start (Windows)
+
+### 1. Run Setup Script
+Run the automated environment batch script to build a virtual environment, install package dependencies in editable mode, and create a default `.env`:
+```bash
+setup.bat
+```
+
+### 2. Configure Credentials
+Open `.env` and set your preferred `ADMIN_PASSWORD` (defaults to `nayakacode`), `LLM_PROVIDER`, and `LLM_API_KEY`.
+
+### 3. Launch Nova Core Server
+Start the centralized Python hub:
+```bash
+python -m nova_core.main
+```
+The server will boot on `http://127.0.0.1:8000`. You can access the **Web Dashboard** by navigating to this address in your web browser.
+
+### 4. Launch Desktop Agent Client
+In another terminal session, launch the CLI client:
+```bash
+python -m desktop_agent.main
+```
+
+---
+
+## 🔒 Security & Policy Engine (`policy.yaml`)
+
+Both the Core server and client agents validate action requests against a local `policy.yaml` configuration.
+* **unconditional floor**: Shell execution commands (`run_script`, `install_package`) always require explicit verification prompts (`always_explicit`), even if configured as `none` in files.
+* **whitelisted actions**: Read-only stats (`get_battery`) or local whitelisted apps (`notepad`) execute silently, while others request console confirmations.
+
+---
+
+## 🧪 Running Tests
+
+Ensure all automated tests pass by executing pytest inside the virtual environment:
+```bash
+python -m pytest
+```

@@ -1,3 +1,4 @@
+README.md
 pyproject.toml
 desktop_agent/__init__.py
 desktop_agent/action_executor.py
@@ -19,17 +20,23 @@ desktop_agent/platform/windows_adapter.py
 nova.egg-info/PKG-INFO
 nova.egg-info/SOURCES.txt
 nova.egg-info/dependency_links.txt
+nova.egg-info/entry_points.txt
 nova.egg-info/requires.txt
 nova.egg-info/top_level.txt
 nova_core/__init__.py
+nova_core/auth.py
 nova_core/main.py
 nova_core/permission_registry.py
 nova_core/api/__init__.py
+nova_core/api/routes_auth.py
 nova_core/api/routes_automation.py
 nova_core/api/routes_capabilities.py
 nova_core/api/routes_command.py
+nova_core/api/routes_context.py
+nova_core/api/routes_db.py
 nova_core/api/routes_event.py
 nova_core/api/routes_history.py
+nova_core/api/routes_migration.py
 nova_core/api/routes_policy.py
 nova_core/automation/__init__.py
 nova_core/automation/conditions.py
@@ -39,6 +46,7 @@ nova_core/context/__init__.py
 nova_core/context/context_store.py
 nova_core/context/task_resolver.py
 nova_core/db/store.py
+nova_core/integrations/smart_home/tuya.py
 nova_core/models/__init__.py
 nova_core/models/action.py
 nova_core/models/command.py

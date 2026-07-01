@@ -31,6 +31,9 @@ test = [
     "pytest>=7.0.0",
 ]
 
+[project.scripts]
+nova = "desktop_agent.main:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["desktop_agent*", "nova_core*"]

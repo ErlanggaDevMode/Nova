@@ -22,6 +22,7 @@ const contextList = document.getElementById('context-list');
 const deviceList = document.getElementById('device-list');
 const rulesList = document.getElementById('rules-list');
 const historyTableBody = document.getElementById('history-table-body');
+const conflictList = document.getElementById('conflict-list');
 
 const ruleForm = document.getElementById('rule-form');
 const triggerTypeSelect = document.getElementById('trigger-type');
@@ -131,13 +132,30 @@ async function fetchWorkspaceData() {
     if (activeTab === 'overview') {
         // 1. Get presence devices
         try {
-            const res = await fetch('/capabilities/desktop_agent_client', { headers }); // check presence schema or fetch all devices
-            // If endpoint doesn't exist, handle fallback
+            const res = await fetch('/capabilities', { headers });
+            if (res.ok) {
+                const data = await res.json();
+                renderDeviceList(data.devices || []);
+            }
         } catch(e){}
 
-        // Mock populate for visual preview if REST endpoints are locked / waiting for WebSocket events
-        updateDeviceList();
-        updateContextList();
+        // 2. Get active context diagnostics
+        try {
+            const res = await fetch('/context/dump', { headers });
+            if (res.ok) {
+                const data = await res.json();
+                renderContextList(data);
+            }
+        } catch(e){}
+
+        // 3. Get context conflicts
+        try {
+            const res = await fetch('/context/conflicts', { headers });
+            if (res.ok) {
+                const data = await res.json();
+                renderConflictList(data);
+            }
+        } catch(e){}
     }
     
     if (activeTab === 'rules') {
@@ -306,26 +324,66 @@ ruleForm.addEventListener('submit', async (e) => {
 });
 
 // Live updates
-function updateDeviceList() {
-    deviceList.innerHTML = `
-        <div class="list-item">
-            <span>Desktop CLI Client</span>
-            <span style="color:var(--success)">Online</span>
-        </div>
-        <div class="list-item">
-            <span>Android Client</span>
-            <span style="color:var(--text-secondary)">Offline</span>
-        </div>
-    `;
+function renderDeviceList(devices) {
+    if (!devices || devices.length === 0) {
+        deviceList.innerHTML = '<p class="empty-msg">No active devices registered.</p>';
+        return;
+    }
+    deviceList.innerHTML = devices.map(device => {
+        const statusText = device.online ? 'Online' : 'Offline';
+        const statusColor = device.online ? 'var(--success)' : 'var(--text-secondary)';
+        return `
+            <div class="list-item">
+                <span><strong>${device.name}</strong> (${device.platform})</span>
+                <span style="color:${statusColor}">${statusText}</span>
+            </div>
+        `;
+    }).join('');
 }
 
-function updateContextList() {
-    contextList.innerHTML = `
-        <div class="list-item">
-            <span>task:planning_trip</span>
-            <span style="color:var(--accent)">exploring hotels</span>
+function renderContextList(contextData) {
+    const details = contextData.details || [];
+    if (details.length === 0) {
+        contextList.innerHTML = '<p class="empty-msg">No active contexts found.</p>';
+        return;
+    }
+    contextList.innerHTML = details.map(c => `
+        <div class="list-item" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+            <div style="display: flex; justify-content: space-between; width: 100%;">
+                <span style="font-weight: 600; color: var(--accent);">${c.key}</span>
+                <span class="badge" style="background: rgba(46, 143, 255, 0.15); color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">${c.priority} Priority</span>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); display: flex; gap: 15px; margin-top: 4px;">
+                <span>Size: ${c.value_length_chars} chars</span>
+                <span>TTL: ${Math.round(c.ttl_remaining_seconds)}s</span>
+            </div>
         </div>
-    `;
+    `).join('');
+}
+
+function renderConflictList(conflicts) {
+    if (!conflicts || conflicts.length === 0) {
+        conflictList.innerHTML = '<p class="empty-msg" style="color: var(--success)">✓ No sync conflicts detected. System healthy.</p>';
+        return;
+    }
+    conflictList.innerHTML = conflicts.map(c => {
+        const date = new Date(c.created_at).toLocaleString();
+        return `
+            <div class="list-item" style="flex-direction: column; align-items: flex-start; gap: 6px; border-color: rgba(248, 81, 73, 0.2);">
+                <div style="display: flex; justify-content: space-between; width: 100%;">
+                    <span style="color: var(--error); font-weight: 600;">Conflict on: ${c.key}</span>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">${date}</span>
+                </div>
+                <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                    Winner: <span style="color: var(--success); font-weight: 600;">${c.winning_device_id}</span> | 
+                    Losing Request: <span style="color: var(--error);">${c.losing_device_id}</span>
+                </div>
+                <div style="font-size: 0.85rem; color: var(--text-secondary); font-style: italic; margin-top: 2px; padding-left: 8px; border-left: 2px solid rgba(248, 81, 73, 0.3);">
+                    ${c.conflict_details}
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 // WebSockets link
@@ -338,7 +396,7 @@ function connectWebSocket() {
     ws.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            if (data.event === 'presence.changed') {
+            if (data.event === 'presence.changed' || data.event === 'context.update') {
                 fetchWorkspaceData();
             }
         } catch(e){}
