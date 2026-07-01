@@ -68,3 +68,12 @@ class ConnectionManager:
         if action_id in self.pending_actions:
             if not self.pending_actions[action_id].done():
                 self.pending_actions[action_id].set_result(result)
+
+    async def broadcast(self, message: dict):
+        """Broadcasts a payload to all connected clients."""
+        for device_id, ws in list(self.active_connections.items()):
+            try:
+                await ws.send_json(message)
+            except Exception:
+                # Clean up if connection is broken
+                pass

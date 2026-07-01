@@ -21,6 +21,9 @@ from nova_core.api.routes_history import router as history_router
 from nova_core.api.routes_automation import router as auto_router
 from nova_core.api.routes_event import router as event_router
 from nova_core.api.routes_auth import router as auth_router
+from nova_core.api.routes_db import router as db_router
+from nova_core.api.routes_migration import router as migration_router
+from nova_core.api.routes_context import router as context_router
 
 import uvicorn
 import logging
@@ -34,8 +37,8 @@ app = FastAPI(title="Nova Core Server", version="0.5.0")
 store = DatabaseStore()
 manager = ConnectionManager()
 registry = PermissionRegistry()
-context_store = ContextStore(store)
-router_engine = HybridRouter()
+context_store = ContextStore(store, manager=manager)
+router_engine = HybridRouter(store=store)
 presence_tracker = PresenceTracker(store, manager)
 rules_store = RulesStore(store)
 auto_engine = AutomationEngine(store, rules_store, registry, manager)
@@ -59,6 +62,9 @@ app.include_router(policy_router, dependencies=[Depends(get_current_user)])
 app.include_router(history_router, dependencies=[Depends(get_current_user)])
 app.include_router(auto_router, dependencies=[Depends(get_current_user)])
 app.include_router(event_router, dependencies=[Depends(get_current_user)])
+app.include_router(db_router, dependencies=[Depends(get_current_user)])
+app.include_router(migration_router, dependencies=[Depends(get_current_user)])
+app.include_router(context_router, dependencies=[Depends(get_current_user)])
 
 # Expose open static dashboard assets
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "web"), name="static")
