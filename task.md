@@ -88,25 +88,25 @@ This roadmap details the daily action items for Nova's next 30 days of developme
 - [x] **F18.5**: Support low battery alert action trigger scripts.
 
 ### Day 12 — Phase 19: Rule Chain & Loop Protections
-- [ ] **F19.1**: Build sequential rule execution chaining logic.
-- [ ] **F19.2**: Develop circular reference loop checks.
-- [ ] **F19.3**: Implement rule trigger limits and cool-down schedules.
-- [ ] **F19.4**: Add pre-execution dependency validations.
-- [ ] **F19.5**: Setup automation loop breaker alerts.
+- [x] **F19.1**: Build sequential rule execution chaining logic.
+- [x] **F19.2**: Develop circular reference loop checks.
+- [x] **F19.3**: Implement rule trigger limits and cool-down schedules.
+- [x] **F19.4**: Add pre-execution dependency validations.
+- [x] **F19.5**: Setup automation loop breaker alerts.
 
 ### Day 13 — Phase 20: Smart Plug HTTP Integrations
-- [ ] **F20.1**: Add Shelly plug HTTP commands sender.
-- [ ] **F20.2**: Integrate TP-Link Kasa local smart plug driver.
-- [ ] **F20.3**: Build local network smart plug discovery scanner.
-- [ ] **F20.4**: Add smart plug status sync endpoints.
-- [ ] **F20.5**: Implement custom smart plug category rule parser.
+- [x] **F20.1**: Add Shelly plug HTTP commands sender.
+- [x] **F20.2**: Integrate TP-Link Kasa local smart plug driver.
+- [x] **F20.3**: Build local network smart plug discovery scanner.
+- [x] **F20.4**: Add smart plug status sync endpoints.
+- [x] **F20.5**: Implement custom smart plug category rule parser.
 
 ### Day 14 — Phase 21: Home Assistant Event Adapters
-- [ ] **F21.1**: Connect to Home Assistant WebSocket connection manager.
-- [ ] **F21.2**: Implement entity state modification trigger tracking.
-- [ ] **F21.3**: Add event dispatch API.
-- [ ] **F21.4**: Define device capabilities sync maps.
-- [ ] **F21.5**: Create REST integration endpoints.
+- [x] **F21.1**: Connect to Home Assistant WebSocket connection manager.
+- [x] **F21.2**: Implement entity state modification trigger tracking.
+- [x] **F21.3**: Add event dispatch API.
+- [x] **F21.4**: Define device capabilities sync maps.
+- [x] **F21.5**: Create REST integration endpoints.
 
 ---
 
