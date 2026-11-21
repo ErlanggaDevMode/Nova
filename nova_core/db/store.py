@@ -336,7 +336,7 @@ class DatabaseStore:
 
     def export_data_to_json(self, export_path: Path | str) -> dict:
         """Exports all core table rows to a structured JSON file."""
-        tables = ["devices", "commands", "actions", "automation_rules", "schema_migrations", "router_performance", "context_conflicts"]
+        tables = ["devices", "commands", "actions", "automation_rules", "schema_migrations", "router_performance", "context_conflicts", "execution_history"]
         export_data = {}
         
         try:
@@ -361,7 +361,7 @@ class DatabaseStore:
                 
             # Truncate tables first to seed clean fixtures
             for table, rows in import_data.items():
-                if table not in ["devices", "commands", "actions", "automation_rules", "schema_migrations", "router_performance", "context_conflicts"]:
+                if table not in ["devices", "commands", "actions", "automation_rules", "schema_migrations", "router_performance", "context_conflicts", "execution_history"]:
                     continue
                 with self.get_connection() as conn:
                     conn.execute(f"DELETE FROM {table}")
@@ -554,3 +554,119 @@ class DatabaseStore:
         with self.get_connection() as conn:
             rows = conn.execute(sql, (limit,)).fetchall()
             return [dict(r) for r in rows]
+
+    def log_execution_history(
+        self,
+        action_type: str,
+        category: str,
+        source_device_id: str,
+        status: str,
+        params: dict | None = None,
+        result: dict | None = None,
+        error_message: str | None = None,
+        command_id: str | None = None,
+        action_id: str | None = None,
+        validated: bool = True,
+        repaired: bool = False,
+        duration_ms: float = 0.0,
+    ) -> int | None:
+        sql = """
+        INSERT INTO execution_history (
+            command_id, action_id, action_type, category, source_device_id,
+            status, validated, repaired, params, result, error_message,
+            duration_ms, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                sql,
+                (
+                    command_id,
+                    action_id,
+                    action_type,
+                    category,
+                    source_device_id,
+                    status,
+                    1 if validated else 0,
+                    1 if repaired else 0,
+                    json.dumps(params if params is not None else {}),
+                    json.dumps(result) if result is not None else None,
+                    error_message,
+                    float(duration_ms),
+                    now,
+                ),
+            )
+            return getattr(cursor, "lastrowid", None)
+
+    def get_execution_history(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        action_type: str | None = None,
+        status: str | None = None,
+        source_device_id: str | None = None,
+    ) -> list[dict]:
+        clauses: list[str] = []
+        values: list = []
+        if action_type is not None:
+            clauses.append("action_type = ?")
+            values.append(action_type)
+        if status is not None:
+            clauses.append("status = ?")
+            values.append(status)
+        if source_device_id is not None:
+            clauses.append("source_device_id = ?")
+            values.append(source_device_id)
+
+        where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        sql = f"""
+        SELECT * FROM execution_history
+        {where_sql}
+        ORDER BY created_at DESC, id DESC
+        LIMIT ? OFFSET ?
+        """
+        values.extend([limit, offset])
+
+        with self.get_connection() as conn:
+            rows = conn.execute(sql, tuple(values)).fetchall()
+            items: list[dict] = []
+            for row in rows:
+                item = dict(row)
+                if isinstance(item.get("params"), str):
+                    item["params"] = json.loads(item["params"])
+                if isinstance(item.get("result"), str):
+                    item["result"] = json.loads(item["result"])
+                item["validated"] = bool(item.get("validated", 0))
+                item["repaired"] = bool(item.get("repaired", 0))
+                items.append(item)
+            return items
+
+    def get_execution_history_stats(self) -> dict:
+        sql = """
+        SELECT
+            COUNT(*) as total,
+            SUM(CASE WHEN status IN ('success', 'validated') THEN 1 ELSE 0 END) as success_count,
+            SUM(CASE WHEN status IN ('failed', 'validation_error', 'denied') THEN 1 ELSE 0 END) as failed_count,
+            SUM(CASE WHEN repaired = 1 THEN 1 ELSE 0 END) as repaired_count,
+            AVG(duration_ms) as avg_duration_ms
+        FROM execution_history
+        """
+        with self.get_connection() as conn:
+            row = conn.execute(sql).fetchone()
+            if row and row["total"]:
+                return {
+                    "total": int(row["total"]),
+                    "success_count": int(row["success_count"] or 0),
+                    "failed_count": int(row["failed_count"] or 0),
+                    "repaired_count": int(row["repaired_count"] or 0),
+                    "avg_duration_ms": round(float(row["avg_duration_ms"] or 0.0), 3),
+                }
+        return {
+            "total": 0,
+            "success_count": 0,
+            "failed_count": 0,
+            "repaired_count": 0,
+            "avg_duration_ms": 0.0,
+        }

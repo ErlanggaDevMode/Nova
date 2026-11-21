@@ -82,6 +82,8 @@ class ActionExecutor:
             elif action.category == "read_only_info":
                 result = self.system_info.execute(action.action_type, action.params)
             elif action.category == "file_system":
+                # Handles search_files, read_file, write_file, delete_file,
+                # detect_mime_type, get_file_mime, and get_file_metadata
                 self.file_ops.policy = self.permission_registry.policy
                 result = self.file_ops.execute(action.action_type, action.params)
             elif action.category == "shell_command":

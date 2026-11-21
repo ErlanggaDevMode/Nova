@@ -31,6 +31,17 @@ categories:
   file_system:
     read:
       confirmation: none
+      actions:
+        - search_files
+        - read_file
+        - detect_mime_type
+        - get_file_mime
+        - get_file_metadata
+      exclude_dirs:
+        - ".git"
+        - "node_modules"
+        - "__pycache__"
+        - ".venv"
       allowed_paths:
         - "~/Documents"
         - "~/Downloads"

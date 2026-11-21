@@ -42,18 +42,18 @@ This roadmap details the daily action items for Nova's next 30 days of developme
 - [x] **F12.5**: Scaffold context sync health dashboard widget feed.
 
 ### Day 6 — Phase 13: File System Searching Enhancements
-- [ ] **F13.1**: Add regular expression filter support in searches.
-- [ ] **F13.2**: Configure exclude directories path filters.
-- [ ] **F13.3**: Enable index caching for fast repeat queries.
-- [ ] **F13.4**: Integrate file MIME type detector action.
-- [ ] **F13.5**: Add file metadata reader integration.
+- [x] **F13.1**: Add regular expression filter support in searches.
+- [x] **F13.2**: Configure exclude directories path filters.
+- [x] **F13.3**: Enable index caching for fast repeat queries.
+- [x] **F13.4**: Integrate file MIME type detector action.
+- [x] **F13.5**: Add file metadata reader integration.
 
 ### Day 7 — Phase 14: LLM Structured Response Validators
-- [ ] **F14.1**: Define JSON schema validators on tool call arguments.
-- [ ] **F14.2**: Write structured output parsing error repair logic.
-- [ ] **F14.3**: Integrate interactive command query CLI validator.
-- [ ] **F14.4**: Create execution history logging table.
-- [ ] **F14.5**: Expose command schema check REST endpoint.
+- [x] **F14.1**: Define JSON schema validators on tool call arguments.
+- [x] **F14.2**: Write structured output parsing error repair logic.
+- [x] **F14.3**: Integrate interactive command query CLI validator.
+- [x] **F14.4**: Create execution history logging table.
+- [x] **F14.5**: Expose command schema check REST endpoint.
 
 ---
 

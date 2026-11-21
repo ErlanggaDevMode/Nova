@@ -24,6 +24,7 @@ from nova_core.api.routes_auth import router as auth_router
 from nova_core.api.routes_db import router as db_router
 from nova_core.api.routes_migration import router as migration_router
 from nova_core.api.routes_context import router as context_router
+from nova_core.api.routes_validation import router as validation_router
 
 import uvicorn
 import logging
@@ -65,6 +66,7 @@ app.include_router(event_router, dependencies=[Depends(get_current_user)])
 app.include_router(db_router, dependencies=[Depends(get_current_user)])
 app.include_router(migration_router, dependencies=[Depends(get_current_user)])
 app.include_router(context_router, dependencies=[Depends(get_current_user)])
+app.include_router(validation_router, dependencies=[Depends(get_current_user)])
 
 # Expose open static dashboard assets
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "web"), name="static")

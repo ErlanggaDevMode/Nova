@@ -155,10 +155,18 @@ class PermissionRegistry:
             reason="Communication action allowed with confirmation."
         )
 
+    READ_ONLY_FS_ACTIONS = (
+        "search_files",
+        "read_file",
+        "detect_mime_type",
+        "get_file_mime",
+        "get_file_metadata",
+    )
+
     def _check_file_system(self, action: ActionRequest, policy: dict) -> PermissionDecision:
         action_type = action.action_type
         
-        if action_type not in ("search_files", "read_file", "write_file", "delete_file"):
+        if action_type not in (*self.READ_ONLY_FS_ACTIONS, "write_file", "delete_file"):
             return PermissionDecision(
                 allowed=False,
                 requires_confirmation=False,
@@ -166,7 +174,7 @@ class PermissionRegistry:
             )
             
         # Determine policy section (read vs write vs delete)
-        if action_type in ("search_files", "read_file"):
+        if action_type in self.READ_ONLY_FS_ACTIONS:
             sub_policy = policy.get("read", {})
             op_name = "read"
         elif action_type == "write_file":
@@ -175,6 +183,15 @@ class PermissionRegistry:
         elif action_type == "delete_file":
             sub_policy = policy.get("delete", {})
             op_name = "delete"
+
+        # If sub_policy explicitly lists allowed actions, enforce membership
+        configured_actions = sub_policy.get("actions")
+        if configured_actions is not None and action_type not in configured_actions:
+            return PermissionDecision(
+                allowed=False,
+                requires_confirmation=False,
+                reason=f"Action '{action_type}' is not permitted under file_system.{op_name} policy."
+            )
             
         allowed_paths = sub_policy.get("allowed_paths", [])
         confirm_level = sub_policy.get("confirmation", "confirm")

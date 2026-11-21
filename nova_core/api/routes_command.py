@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 from nova_core.models import RoutedResult, ActionRequest
@@ -19,6 +20,7 @@ async def submit_command(payload: CommandSubmission, request: Request):
     manager = app.state.manager
 
     command_id = os.urandom(8).hex()
+    start_time = time.perf_counter()
 
     # 1. Route the command (local vs cloud)
     routed: RoutedResult = router_engine.route_command(payload.raw_text, payload.source_device_id, app.state.context_store)
@@ -57,6 +59,17 @@ async def submit_command(payload: CommandSubmission, request: Request):
     )
 
     if not decision.allowed:
+        store.log_execution_history(
+            command_id=command_id,
+            action_id=action_id,
+            action_type=action.action_type,
+            category=action.category,
+            source_device_id=payload.source_device_id,
+            status="denied",
+            params=action.params,
+            error_message=decision.reason,
+            duration_ms=(time.perf_counter() - start_time) * 1000.0,
+        )
         return {
             "success": False,
             "error": f"Permission denied: {decision.reason}",
@@ -64,6 +77,16 @@ async def submit_command(payload: CommandSubmission, request: Request):
         }
 
     if decision.requires_confirmation:
+        store.log_execution_history(
+            command_id=command_id,
+            action_id=action_id,
+            action_type=action.action_type,
+            category=action.category,
+            source_device_id=payload.source_device_id,
+            status="pending_confirmation",
+            params=action.params,
+            duration_ms=(time.perf_counter() - start_time) * 1000.0,
+        )
         return {
             "success": True,
             "requires_confirmation": True,
@@ -76,6 +99,18 @@ async def submit_command(payload: CommandSubmission, request: Request):
     result = await manager.send_action_request(payload.source_device_id, action_id, action)
     executed = result.get("success", False)
     store.update_action_result(action_id, executed, result)
+    store.log_execution_history(
+        command_id=command_id,
+        action_id=action_id,
+        action_type=action.action_type,
+        category=action.category,
+        source_device_id=payload.source_device_id,
+        status="success" if executed else "failed",
+        params=action.params,
+        result=result,
+        error_message=None if executed else result.get("error"),
+        duration_ms=(time.perf_counter() - start_time) * 1000.0,
+    )
 
     return {
         "success": executed,
@@ -90,6 +125,7 @@ async def confirm_command(action_id: str, request: Request):
     app = request.app
     store = app.state.store
     manager = app.state.manager
+    start_time = time.perf_counter()
 
     sql = "SELECT * FROM actions WHERE id = ?"
     with store.get_connection() as conn:
@@ -120,6 +156,18 @@ async def confirm_command(action_id: str, request: Request):
     result = await manager.send_action_request(device_id, action_id, action)
     executed = result.get("success", False)
     store.update_action_result(action_id, executed, result)
+    store.log_execution_history(
+        command_id=command_id,
+        action_id=action_id,
+        action_type=action.action_type,
+        category=action.category,
+        source_device_id=device_id,
+        status="success" if executed else "failed",
+        params=action.params,
+        result=result,
+        error_message=None if executed else result.get("error"),
+        duration_ms=(time.perf_counter() - start_time) * 1000.0,
+    )
 
     return {
         "success": executed,

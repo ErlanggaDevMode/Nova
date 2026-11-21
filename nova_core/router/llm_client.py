@@ -2,6 +2,7 @@ import os
 import logging
 from typing import Tuple, Optional
 from nova_core.models import ActionRequest
+from nova_core.router.validators import parse_and_validate_tool_call
 
 logger = logging.getLogger("nova.llm_client")
 
@@ -212,10 +213,13 @@ class LLMClient:
             if content.type == "text":
                 resp_text = content.text
             elif content.type == "tool_use":
+                params, repaired, repairs = parse_and_validate_tool_call(content.name, content.input)
+                if repaired:
+                    logger.info(f"Repaired Anthropic tool call '{content.name}': {repairs}")
                 action_req = ActionRequest(
                     action_type=content.name,
                     category=map_action_to_category(content.name),
-                    params=content.input,
+                    params=params,
                     source_device_id=source_device_id,
                     origin="cloud_llm"
                 )
@@ -259,8 +263,12 @@ class LLMClient:
 
         if choice.message.tool_calls:
             tool_call = choice.message.tool_calls[0]
-            import json
-            params = json.loads(tool_call.function.arguments)
+            params, repaired, repairs = parse_and_validate_tool_call(
+                tool_call.function.name,
+                tool_call.function.arguments,
+            )
+            if repaired:
+                logger.info(f"Repaired OpenAI-compatible tool call '{tool_call.function.name}': {repairs}")
             action_req = ActionRequest(
                 action_type=tool_call.function.name,
                 category=map_action_to_category(tool_call.function.name),
@@ -426,7 +434,12 @@ class LLMClient:
 
         if choice.message.tool_calls:
             tool_call = choice.message.tool_calls[0]
-            params = json.loads(tool_call.function.arguments)
+            params, repaired, repairs = parse_and_validate_tool_call(
+                tool_call.function.name,
+                tool_call.function.arguments,
+            )
+            if repaired:
+                logger.info(f"Repaired Ollama tool call '{tool_call.function.name}': {repairs}")
             action_req = ActionRequest(
                 action_type=tool_call.function.name,
                 category=map_action_to_category(tool_call.function.name),
