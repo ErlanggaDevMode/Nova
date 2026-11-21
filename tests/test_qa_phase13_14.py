@@ -500,7 +500,7 @@ def test_qa_repair_json_nested_markdown_fences_edge_case():
     """
     Audit Edge Case: Nested Markdown code fences.
     Standard single fence is successfully repaired.
-    Nested fences demonstrate the documented regex limitation and fail safely without crashing.
+    Nested fences (e.g. ```markdown wrapping ```json) are unwrapped and parsed into valid JSON.
     """
     # 1. Standard single fence works
     single_fenced = '```json\n{"app_name": "notepad"}\n```'
@@ -512,14 +512,31 @@ def test_qa_repair_json_nested_markdown_fences_edge_case():
     # 2. Nested fences (outer ```markdown wrapping inner ```json)
     nested_fenced = '```markdown\n```json\n{"action_type": "open_app", "params": {"app_name": "notepad"}}\n```\n```'
     res_nested = repair_and_parse_json(nested_fenced)
-    # The non-greedy fence regex stops at the second fence, resulting in empty/unparseable candidate
-    assert res_nested.parsed is None
-    assert "Unable to parse or repair structured JSON output" in (res_nested.error or "")
+    assert res_nested.parsed == {"action_type": "open_app", "params": {"app_name": "notepad"}}
+    assert res_nested.repaired is True
+    assert "stripped_markdown_fences" in res_nested.repairs_applied
 
-    # validate_command_payload also rejects it safely with structured report
+    # validate_command_payload successfully repairs and validates the command
     report = validate_command_payload(nested_fenced)
-    assert report.valid is False
-    assert report.errors[0].code == "json_parse_error"
+    assert report.valid is True
+    assert report.action_type == "open_app"
+    assert report.normalized_params == {"app_name": "notepad"}
+    assert "stripped_markdown_fences" in report.repairs_applied
+
+    # Nested fences with surrounding prose and trailing commas
+    complex_nested = (
+        "Here is the planned action:\n"
+        "```markdown\n"
+        "```json\n"
+        '{"action_type": "open_app", "params": {"app_name": "notepad",}}\n'
+        "```\n"
+        "```\n"
+        "Please execute."
+    )
+    res_complex = repair_and_parse_json(complex_nested)
+    assert res_complex.parsed == {"action_type": "open_app", "params": {"app_name": "notepad"}}
+    assert res_complex.repaired is True
+    assert "stripped_markdown_fences" in res_complex.repairs_applied
 
 
 def test_qa_repair_json_oversized_payload_handling():
@@ -581,11 +598,15 @@ def test_qa_validators_forbidden_extra_fields():
 
 
 def test_qa_validators_unknown_action_type_and_missing_action():
-    """Ensure unknown actions provide closest fuzzy matches and missing actions return error."""
-    # Missing action
+    """Ensure unknown actions provide closest fuzzy matches and missing/blank actions return missing_action_type."""
+    # Missing action (empty string and whitespace-only)
     res_none = validate_tool_arguments("", {"app_name": "vscode"})
     assert res_none.valid is False
     assert res_none.errors[0].code == "missing_action_type"
+
+    res_spaces = validate_tool_arguments("   ", {"app_name": "vscode"})
+    assert res_spaces.valid is False
+    assert res_spaces.errors[0].code == "missing_action_type"
 
     # Unknown action with fuzzy suggestion
     res_fuzzy = validate_tool_arguments("search_file", {"query": "*.py"})

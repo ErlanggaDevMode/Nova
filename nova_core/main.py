@@ -27,6 +27,8 @@ from nova_core.api.routes_context import router as context_router
 from nova_core.api.routes_validation import router as validation_router
 from nova_core.api.routes_scheduler import router as scheduler_router
 from nova_core.api.routes_notifications import router as notifications_router
+from nova_core.api.routes_weather import router as weather_router
+from nova_core.api.routes_system_triggers import router as system_triggers_router
 
 import uvicorn
 import logging
@@ -71,6 +73,8 @@ app.include_router(context_router, dependencies=[Depends(get_current_user)])
 app.include_router(validation_router, dependencies=[Depends(get_current_user)])
 app.include_router(scheduler_router, dependencies=[Depends(get_current_user)])
 app.include_router(notifications_router, dependencies=[Depends(get_current_user)])
+app.include_router(weather_router, dependencies=[Depends(get_current_user)])
+app.include_router(system_triggers_router, dependencies=[Depends(get_current_user)])
 
 # Expose open static dashboard assets
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "web"), name="static")

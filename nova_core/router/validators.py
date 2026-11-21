@@ -204,7 +204,8 @@ class JSONRepairResult(BaseModel):
     error: Optional[str] = None
 
 
-_FENCE_RE = re.compile(r"```(?:json|JSON)?\s*\n?(.*?)\n?\s*```", re.DOTALL)
+_JSON_FENCE_RE = re.compile(r"```(?:json|JSON)\b[^\n]*\s*\n?(.*?)\n?\s*```", re.DOTALL)
+_FENCE_RE = re.compile(r"```(?:[a-zA-Z0-9_-]+)?\s*\n?(.*?)\n?\s*```", re.DOTALL)
 _UNQUOTED_KEY_RE = re.compile(r'([{\[,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)')
 
 
@@ -502,16 +503,40 @@ def repair_and_parse_json(raw_output: str | dict[str, Any]) -> JSONRepairResult:
     candidate = stripped
     repairs: list[str] = []
 
-    # 1. Strip markdown code fences (```json ... ```)
-    fence_match = _FENCE_RE.search(candidate)
-    if fence_match:
-        candidate = fence_match.group(1).strip()
+    # 1. Strip markdown code fences (```json ... ``` or nested ```markdown ... ```)
+    json_fence_match = _JSON_FENCE_RE.search(candidate)
+    if json_fence_match:
+        fenced_content = json_fence_match.group(1).strip()
         repairs.append("stripped_markdown_fences")
-        parsed, note = _try_parse_dict(candidate)
+        parsed, note = _try_parse_dict(fenced_content)
         if parsed is not None:
             if note:
                 repairs.append(note)
             return JSONRepairResult(parsed=parsed, repaired=True, repairs_applied=repairs)
+        candidate = fenced_content
+    else:
+        stripped_any_fence = False
+        while True:
+            outer_fence = re.search(r"^\s*```(?:[a-zA-Z0-9_-]+)?\s*\n?(.*?)\n?\s*```\s*$", candidate, re.DOTALL)
+            if outer_fence:
+                candidate = outer_fence.group(1).strip()
+                stripped_any_fence = True
+            else:
+                break
+
+        if not stripped_any_fence:
+            fence_match = _FENCE_RE.search(candidate)
+            if fence_match and "{" in fence_match.group(1):
+                candidate = fence_match.group(1).strip()
+                stripped_any_fence = True
+
+        if stripped_any_fence:
+            repairs.append("stripped_markdown_fences")
+            parsed, note = _try_parse_dict(candidate)
+            if parsed is not None:
+                if note:
+                    repairs.append(note)
+                return JSONRepairResult(parsed=parsed, repaired=True, repairs_applied=repairs)
 
     # 2. Extract JSON object from surrounding prose / partial wrapper
     extracted, extracted_changed = _extract_json_object_wrapper(candidate)
@@ -672,7 +697,7 @@ def validate_tool_arguments(
     Validates tool call arguments for a specific Nova action_type.
     Automatically attempts JSON repair when raw_arguments is a string.
     """
-    if not action_type or not isinstance(action_type, str):
+    if not action_type or not isinstance(action_type, str) or not action_type.strip():
         issue = ValidationIssue(
             field="action_type",
             code="missing_action_type",

@@ -74,18 +74,18 @@ This roadmap details the daily action items for Nova's next 30 days of developme
 - [x] **F16.5**: Create incoming notification history logging.
 
 ### Day 10 — Phase 17: Weather API & Conditions
-- [ ] **F17.1**: Build weather client integrations (OpenWeatherMap API).
-- [ ] **F17.2**: Implement temperature/humidity alert matching checks.
-- [ ] **F17.3**: Configure dynamic location updates adapter.
-- [ ] **F17.4**: Enable weather condition changes trigger evaluation.
-- [ ] **F17.5**: Add weather configuration credentials API.
+- [x] **F17.1**: Build weather client integrations (OpenWeatherMap API).
+- [x] **F17.2**: Implement temperature/humidity alert matching checks.
+- [x] **F17.3**: Configure dynamic location updates adapter.
+- [x] **F17.4**: Enable weather condition changes trigger evaluation.
+- [x] **F17.5**: Add weather configuration credentials API.
 
 ### Day 11 — Phase 18: Platform System Event Triggers
-- [ ] **F18.1**: Create disk usage threshold listeners.
-- [ ] **F18.2**: Add CPU/RAM status utilization triggers.
-- [ ] **F18.3**: Hook network connectivity online/offline state changes.
-- [ ] **F18.4**: Build session screen lock/unlock monitor.
-- [ ] **F18.5**: Support low battery alert action trigger scripts.
+- [x] **F18.1**: Create disk usage threshold listeners.
+- [x] **F18.2**: Add CPU/RAM status utilization triggers.
+- [x] **F18.3**: Hook network connectivity online/offline state changes.
+- [x] **F18.4**: Build session screen lock/unlock monitor.
+- [x] **F18.5**: Support low battery alert action trigger scripts.
 
 ### Day 12 — Phase 19: Rule Chain & Loop Protections
 - [ ] **F19.1**: Build sequential rule execution chaining logic.
