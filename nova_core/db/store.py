@@ -670,3 +670,251 @@ class DatabaseStore:
             "repaired_count": 0,
             "avg_duration_ms": 0.0,
         }
+
+    # --- Phase 15: Scheduled Rules & Scheduler Executions ---
+
+    @staticmethod
+    def _deserialize_scheduled_rule(row) -> dict:
+        item = dict(row)
+        if isinstance(item.get("action_template"), str):
+            item["action_template"] = json.loads(item["action_template"])
+        item["enabled"] = bool(item.get("enabled", 0))
+        item["prevent_overlap"] = bool(item.get("prevent_overlap", 1))
+        item["lock_ttl_seconds"] = int(item.get("lock_ttl_seconds", 300))
+        return item
+
+    def create_scheduled_rule(
+        self,
+        name: str,
+        cron_expression: str,
+        action_template: dict,
+        timezone_name: str = "UTC",
+        enabled: bool = True,
+        prevent_overlap: bool = True,
+        lock_ttl_seconds: int = 300,
+        next_run_at: str | None = None,
+        rule_id: str | None = None,
+    ) -> dict:
+        rid = rule_id or os.urandom(8).hex()
+        now = datetime.now(timezone.utc).isoformat()
+        sql = """
+        INSERT INTO scheduled_rules (
+            id, name, cron_expression, timezone, action_template,
+            enabled, prevent_overlap, lock_ttl_seconds,
+            last_run_at, next_run_at, created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        with self.get_connection() as conn:
+            conn.execute(
+                sql,
+                (
+                    rid,
+                    name,
+                    cron_expression,
+                    timezone_name,
+                    json.dumps(action_template),
+                    1 if enabled else 0,
+                    1 if prevent_overlap else 0,
+                    int(lock_ttl_seconds),
+                    None,
+                    next_run_at,
+                    now,
+                    now,
+                ),
+            )
+        return self.get_scheduled_rule(rid)
+
+    def get_scheduled_rule(self, rule_id: str) -> dict | None:
+        sql = "SELECT * FROM scheduled_rules WHERE id = ?"
+        with self.get_connection() as conn:
+            row = conn.execute(sql, (rule_id,)).fetchone()
+            if row:
+                return self._deserialize_scheduled_rule(row)
+        return None
+
+    def list_scheduled_rules(self, enabled: bool | None = None) -> list[dict]:
+        if enabled is None:
+            sql = "SELECT * FROM scheduled_rules ORDER BY created_at DESC"
+            params: tuple = ()
+        else:
+            sql = "SELECT * FROM scheduled_rules WHERE enabled = ? ORDER BY created_at DESC"
+            params = (1 if enabled else 0,)
+        with self.get_connection() as conn:
+            rows = conn.execute(sql, params).fetchall()
+            return [self._deserialize_scheduled_rule(r) for r in rows]
+
+    def update_scheduled_rule(
+        self,
+        rule_id: str,
+        name: str | None = None,
+        cron_expression: str | None = None,
+        timezone_name: str | None = None,
+        action_template: dict | None = None,
+        enabled: bool | None = None,
+        prevent_overlap: bool | None = None,
+        lock_ttl_seconds: int | None = None,
+        last_run_at: str | None = None,
+        next_run_at: str | None = None,
+    ) -> dict | None:
+        updates: list[str] = []
+        params: list = []
+
+        if name is not None:
+            updates.append("name = ?")
+            params.append(name)
+        if cron_expression is not None:
+            updates.append("cron_expression = ?")
+            params.append(cron_expression)
+        if timezone_name is not None:
+            updates.append("timezone = ?")
+            params.append(timezone_name)
+        if action_template is not None:
+            updates.append("action_template = ?")
+            params.append(json.dumps(action_template))
+        if enabled is not None:
+            updates.append("enabled = ?")
+            params.append(1 if enabled else 0)
+        if prevent_overlap is not None:
+            updates.append("prevent_overlap = ?")
+            params.append(1 if prevent_overlap else 0)
+        if lock_ttl_seconds is not None:
+            updates.append("lock_ttl_seconds = ?")
+            params.append(int(lock_ttl_seconds))
+        if last_run_at is not None:
+            updates.append("last_run_at = ?")
+            params.append(last_run_at)
+        if next_run_at is not None:
+            updates.append("next_run_at = ?")
+            params.append(next_run_at)
+
+        if not updates:
+            return self.get_scheduled_rule(rule_id)
+
+        updates.append("updated_at = ?")
+        params.append(datetime.now(timezone.utc).isoformat())
+        params.append(rule_id)
+
+        sql = f"UPDATE scheduled_rules SET {', '.join(updates)} WHERE id = ?"
+        with self.get_connection() as conn:
+            conn.execute(sql, tuple(params))
+        return self.get_scheduled_rule(rule_id)
+
+    def delete_scheduled_rule(self, rule_id: str) -> bool:
+        existing = self.get_scheduled_rule(rule_id)
+        if not existing:
+            return False
+        with self.get_connection() as conn:
+            conn.execute("DELETE FROM scheduled_rules WHERE id = ?", (rule_id,))
+        return True
+
+    def log_scheduler_execution(
+        self,
+        rule_id: str,
+        rule_name: str,
+        cron_expression: str,
+        timezone_name: str,
+        scheduled_for: str,
+        started_at: str,
+        status: str,
+        finished_at: str | None = None,
+        lock_token: str | None = None,
+        duration_ms: float = 0.0,
+        result: dict | None = None,
+        error_message: str | None = None,
+    ) -> int | None:
+        sql = """
+        INSERT INTO scheduler_executions (
+            rule_id, rule_name, cron_expression, timezone, scheduled_for,
+            started_at, finished_at, status, lock_token, duration_ms,
+            result, error_message, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                sql,
+                (
+                    rule_id,
+                    rule_name,
+                    cron_expression,
+                    timezone_name,
+                    scheduled_for,
+                    started_at,
+                    finished_at,
+                    status,
+                    lock_token,
+                    float(duration_ms),
+                    json.dumps(result) if result is not None else None,
+                    error_message,
+                    now,
+                ),
+            )
+            return getattr(cursor, "lastrowid", None)
+
+    def get_scheduler_executions(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        rule_id: str | None = None,
+        status: str | None = None,
+    ) -> list[dict]:
+        clauses: list[str] = []
+        values: list = []
+        if rule_id is not None:
+            clauses.append("rule_id = ?")
+            values.append(rule_id)
+        if status is not None:
+            clauses.append("status = ?")
+            values.append(status)
+
+        where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        sql = f"""
+        SELECT * FROM scheduler_executions
+        {where_sql}
+        ORDER BY created_at DESC, id DESC
+        LIMIT ? OFFSET ?
+        """
+        values.extend([limit, offset])
+
+        with self.get_connection() as conn:
+            rows = conn.execute(sql, tuple(values)).fetchall()
+            items: list[dict] = []
+            for row in rows:
+                item = dict(row)
+                if isinstance(item.get("result"), str):
+                    item["result"] = json.loads(item["result"])
+                items.append(item)
+            return items
+
+    def get_scheduler_execution_stats(self, rule_id: str | None = None) -> dict:
+        where_sql = "WHERE rule_id = ?" if rule_id is not None else ""
+        params = (rule_id,) if rule_id is not None else ()
+        sql = f"""
+        SELECT
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
+            SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count,
+            SUM(CASE WHEN status = 'skipped_overlap' THEN 1 ELSE 0 END) as skipped_overlap_count,
+            AVG(duration_ms) as avg_duration_ms
+        FROM scheduler_executions
+        {where_sql}
+        """
+        with self.get_connection() as conn:
+            row = conn.execute(sql, params).fetchone()
+            if row and row["total"]:
+                return {
+                    "total": int(row["total"]),
+                    "success_count": int(row["success_count"] or 0),
+                    "failed_count": int(row["failed_count"] or 0),
+                    "skipped_overlap_count": int(row["skipped_overlap_count"] or 0),
+                    "avg_duration_ms": round(float(row["avg_duration_ms"] or 0.0), 3),
+                }
+        return {
+            "total": 0,
+            "success_count": 0,
+            "failed_count": 0,
+            "skipped_overlap_count": 0,
+            "avg_duration_ms": 0.0,
+        }

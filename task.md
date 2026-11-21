@@ -60,18 +60,18 @@ This roadmap details the daily action items for Nova's next 30 days of developme
 ## 📅 Week 2: Cron, Notification Triggers & Smart Home Integration
 
 ### Day 8 — Phase 15: Time & Cron Scheduler Trigger
-- [ ] **F15.1**: Build cron expressions parsing and evaluator.
-- [ ] **F15.2**: Develop DST and Timezone offset calculator.
-- [ ] **F15.3**: Add scheduler overlap and lock checking.
-- [ ] **F15.4**: Create executions log stats database.
-- [ ] **F15.5**: Add rule scheduling CRUD REST endpoints.
+- [x] **F15.1**: Build cron expressions parsing and evaluator.
+- [x] **F15.2**: Develop DST and Timezone offset calculator.
+- [x] **F15.3**: Add scheduler overlap and lock checking.
+- [x] **F15.4**: Create executions log stats database.
+- [x] **F15.5**: Add rule scheduling CRUD REST endpoints.
 
 ### Day 9 — Phase 16: Advanced Notification Rules
-- [ ] **F16.1**: Implement RegEx matching on notification text payloads.
-- [ ] **F16.2**: Add app package source whitelisting checks.
-- [ ] **F16.3**: Define notification alert classification rules.
-- [ ] **F16.4**: Configure silent notification schedules.
-- [ ] **F16.5**: Create incoming notification history logging.
+- [x] **F16.1**: Implement RegEx matching on notification text payloads.
+- [x] **F16.2**: Add app package source whitelisting checks.
+- [x] **F16.3**: Define notification alert classification rules.
+- [x] **F16.4**: Configure silent notification schedules.
+- [x] **F16.5**: Create incoming notification history logging.
 
 ### Day 10 — Phase 17: Weather API & Conditions
 - [ ] **F17.1**: Build weather client integrations (OpenWeatherMap API).
