@@ -238,35 +238,63 @@ function renderHistory(logs) {
     }).join('');
 }
 
+// Avatar link (avatar.js listens for these; harmless if it never loads)
+let avatarState = 'idle';
+let listenTimer = null;
+let commandSeq = 0;
+
+function setAvatarState(state, text) {
+    avatarState = state;
+    window.dispatchEvent(new CustomEvent('nova:state', { detail: { state, text } }));
+}
+
+consoleInput.addEventListener('input', () => {
+    if (avatarState === 'thinking') return;
+    setAvatarState('listening');
+    clearTimeout(listenTimer);
+    listenTimer = setTimeout(() => {
+        if (avatarState === 'listening') setAvatarState('idle');
+    }, 4000);
+});
+
 // Post direct commands
 consoleForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = consoleInput.value.trim();
     if (!text) return;
-    
+
     appendConsoleLog(`You: ${text}`, 'user');
     consoleInput.value = '';
-    
-    const headers = { 
+    clearTimeout(listenTimer);
+    const seq = ++commandSeq;
+    setAvatarState('thinking');
+    // Only the newest command's outcome drives the avatar
+    const settle = (state, reply) => { if (seq === commandSeq) setAvatarState(state, reply); };
+
+    const headers = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
     };
-    
+
     try {
         const response = await fetch('/command', {
             method: 'POST',
             headers,
             body: JSON.stringify({ raw_text: text, source_device_id: 'web_dashboard' })
         });
-        
+
         if (response.ok) {
             const data = await response.json();
-            appendConsoleLog(`Nova: ${data.response_text || 'Acknowledged'} (Routed: ${data.routed_path})`, 'nova');
+            const reply = data.response_text || 'Acknowledged';
+            appendConsoleLog(`Nova: ${reply} (Routed: ${data.routed_path})`, 'nova');
+            settle('talking', reply);
         } else {
             appendConsoleLog('Error: Failed to process command.', 'error');
+            settle('error');
         }
     } catch (err) {
         appendConsoleLog('Error: Core server unreachable.', 'error');
+        settle('error');
     }
 });
 

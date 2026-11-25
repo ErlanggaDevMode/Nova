@@ -63,10 +63,50 @@ async function checkTalkTiming(browser) {
     console.log('ok: talk duration clamped');
 }
 
+async function checkConsoleFlow(browser) {
+    let mode = 'ok';
+    const { page, errors } = await openDashboard(browser, (p) => p.route('**/command', async (r) => {
+        await new Promise((res) => setTimeout(res, 1000));
+        if (mode === 'ok') {
+            await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ response_text: 'Siap!', routed_path: 'test' }) });
+        } else {
+            await r.fulfill({ status: 500, body: 'boom' });
+        }
+    }));
+    await page.waitForFunction(() => window.NovaAvatar);
+
+    await page.type('#console-input', 'nyalakan lampu');
+    assert.strictEqual(await avatarState(page), 'listening', 'typing -> listening');
+
+    await page.click('#console-form button[type=submit]');
+    await page.waitForTimeout(200);
+    assert.strictEqual(await avatarState(page), 'thinking', 'pending -> thinking');
+    await page.waitForFunction(() => document.querySelector('#nova-avatar').dataset.state === 'talking', null, { timeout: 3000 });
+    await page.waitForFunction(() => document.querySelector('#nova-avatar').dataset.state === 'idle', null, { timeout: 4000 });
+
+    mode = 'fail';
+    await page.type('#console-input', 'gagal');
+    await page.click('#console-form button[type=submit]');
+    await page.waitForFunction(() => document.querySelector('#nova-avatar').dataset.state === 'error', null, { timeout: 3000 });
+
+    // Rapid double submit: the last result wins, nothing stays stuck in "thinking"
+    mode = 'ok';
+    await page.type('#console-input', 'satu');
+    await page.click('#console-form button[type=submit]');
+    await page.type('#console-input', 'dua');
+    await page.click('#console-form button[type=submit]');
+    await page.waitForFunction(() => document.querySelector('#nova-avatar').dataset.state === 'talking', null, { timeout: 4000 });
+    await page.waitForFunction(() => document.querySelector('#nova-avatar').dataset.state === 'idle', null, { timeout: 5000 });
+
+    assert.deepStrictEqual(errors, [], 'no page errors');
+    await page.close();
+    console.log('ok: console drives avatar states');
+}
+
 (async () => {
     const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
     const only = process.argv[2];
-    const checks = { checkRenders, checkFallback, checkTalkTiming };
+    const checks = { checkRenders, checkFallback, checkTalkTiming, checkConsoleFlow };
     try {
         for (const [name, fn] of Object.entries(checks)) {
             if (!only || only === name) await fn(browser);
