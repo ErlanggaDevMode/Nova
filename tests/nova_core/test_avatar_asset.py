@@ -37,6 +37,27 @@ def test_glb_has_skin_and_morphs():
     assert REQUIRED_MORPHS <= names
 
 
+def test_avatar_module_served():
+    res = client.get("/static/avatar.js")
+    assert res.status_code == 200
+    assert "nova:state" in res.text
+
+
+def test_three_vendored_locally():
+    res = client.get("/static/vendor/three/three.module.min.js")
+    assert res.status_code == 200
+    res = client.get("/static/vendor/three/addons/loaders/GLTFLoader.js")
+    assert res.status_code == 200
+
+
+def test_dashboard_has_avatar_card_and_importmap():
+    html = (Path(__file__).resolve().parents[2] / "nova_core" / "web" / "index.html").read_text()
+    assert 'id="nova-avatar"' in html
+    assert '"three": "/static/vendor/three/three.module.min.js"' in html
+    assert 'src="/static/avatar.js"' in html
+    assert "https://" not in html.split("importmap")[1].split("</script>")[0]
+
+
 def test_glb_served_statically():
     res = client.get("/static/avatar/nova_avatar.glb")
     assert res.status_code == 200

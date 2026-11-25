@@ -6,6 +6,14 @@
     <title>Nova Orchestrator Dashboard</title>
     <link rel="stylesheet" href="/static/dashboard.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "/static/vendor/three/three.module.min.js",
+                "three/addons/": "/static/vendor/three/addons/"
+            }
+        }
+    </script>
 </head>
 <body>
     <!-- Login Screen -->
@@ -49,8 +57,14 @@
             <!-- Tab 1: Overview Workspace -->
             <section id="tab-overview" class="tab-content active">
                 <div class="dashboard-grid">
+                    <!-- Nova Avatar -->
+                    <div class="card glass-card avatar-card">
+                        <h3>Nova</h3>
+                        <div id="nova-avatar" class="avatar-stage" data-state="idle" aria-label="Nova avatar"></div>
+                    </div>
+
                     <!-- Console Command Box -->
-                    <div class="card glass-card span-2">
+                    <div class="card glass-card">
                         <h3>Interactive Console</h3>
                         <div id="console-logs" class="console-box"></div>
                         <form id="console-form" class="console-input-row">
@@ -167,5 +181,6 @@
     </div>
 
     <script src="/static/dashboard.js"></script>
+    <script type="module" src="/static/avatar.js"></script>
 </body>
 </html>
