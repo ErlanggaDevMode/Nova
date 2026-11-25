@@ -33,10 +33,11 @@ from nova_core.api.routes_rule_chains import router as rule_chains_router
 from nova_core.api.routes_smart_plugs import router as smart_plugs_router
 from nova_core.api.routes_home_assistant import router as home_assistant_router
 
+import os
 import uvicorn
 import logging
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=os.getenv("NOVA_LOG_LEVEL", "INFO").upper())
 logger = logging.getLogger("nova.core")
 
 app = FastAPI(title="Nova Core Server", version="0.5.0")

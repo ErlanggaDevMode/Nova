@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Small helper for the Nova systemd service installed by deploy/install.sh
+set -euo pipefail
+ENV_FILE=/etc/nova/nova.env
+DIR="$(systemctl show -p WorkingDirectory --value nova 2>/dev/null || true)"
+DIR="${DIR:-/opt/nova}"
+
+case "${1:-help}" in
+    status)   systemctl status nova --no-pager ;;
+    logs)     journalctl -u nova -f -n 100 ;;
+    restart)  systemctl restart nova && echo "Nova restarted." ;;
+    stop)     systemctl stop nova && echo "Nova stopped." ;;
+    start)    systemctl start nova && echo "Nova started." ;;
+    update)
+        branch="$(git -C "$DIR" rev-parse --abbrev-ref HEAD)"
+        NOVA_BRANCH="$branch" NOVA_DIR="$DIR" bash "$DIR/deploy/install.sh"
+        ;;
+    password)
+        grep -E '^ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2-
+        ;;
+    set-password)
+        read -r -s -p "New admin password: " pw; echo
+        [ -n "$pw" ] || { echo "Empty password, nothing changed."; exit 1; }
+        { grep -v '^ADMIN_PASSWORD=' "$ENV_FILE"; printf 'ADMIN_PASSWORD=%s\n' "$pw"; } > "$ENV_FILE.tmp"
+        chmod 600 "$ENV_FILE.tmp" && mv "$ENV_FILE.tmp" "$ENV_FILE"
+        systemctl restart nova && echo "Password changed, Nova restarted."
+        ;;
+    *)
+        echo "Usage: nova-ctl status | logs | restart | stop | start | update | password | set-password"
+        ;;
+esac
