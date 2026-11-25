@@ -66,7 +66,12 @@ async function checkTalkTiming(browser) {
 async function checkConsoleFlow(browser) {
     let mode = 'ok';
     const { page, errors } = await openDashboard(browser, (p) => p.route('**/command', async (r) => {
-        await new Promise((res) => setTimeout(res, 1000));
+        const raw = r.request().postDataJSON().raw_text;
+        if (raw === 'lambat-gagal') {
+            await new Promise((res) => setTimeout(res, 2500));
+            return r.fulfill({ status: 500, body: 'late boom' });
+        }
+        await new Promise((res) => setTimeout(res, raw === 'cepat' ? 300 : 1000));
         if (mode === 'ok') {
             await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ response_text: 'Siap!', routed_path: 'test' }) });
         } else {
@@ -89,24 +94,54 @@ async function checkConsoleFlow(browser) {
     await page.click('#console-form button[type=submit]');
     await page.waitForFunction(() => document.querySelector('#nova-avatar').dataset.state === 'error', null, { timeout: 3000 });
 
-    // Rapid double submit: the last result wins, nothing stays stuck in "thinking"
+    // Rapid double submit: a slow failing command is overtaken by a fast good one.
+    // The late failure must not flip the avatar to "error" (newest command wins).
     mode = 'ok';
-    await page.type('#console-input', 'satu');
+    await page.waitForFunction(() => document.querySelector('#nova-avatar').dataset.state === 'idle', null, { timeout: 4000 });
+    await page.evaluate(() => {
+        window.__states = [];
+        new MutationObserver(() => window.__states.push(document.querySelector('#nova-avatar').dataset.state))
+            .observe(document.querySelector('#nova-avatar'), { attributes: true, attributeFilter: ['data-state'] });
+    });
+    await page.type('#console-input', 'lambat-gagal');
     await page.click('#console-form button[type=submit]');
-    await page.type('#console-input', 'dua');
+    await page.type('#console-input', 'cepat');
     await page.click('#console-form button[type=submit]');
     await page.waitForFunction(() => document.querySelector('#nova-avatar').dataset.state === 'talking', null, { timeout: 4000 });
-    await page.waitForFunction(() => document.querySelector('#nova-avatar').dataset.state === 'idle', null, { timeout: 5000 });
+    await page.waitForTimeout(3000); // past the slow command's late 500
+    const seen = await page.evaluate(() => window.__states);
+    assert.ok(!seen.includes('error'), `late failure of an older command changed the avatar: ${seen.join(' > ')}`);
 
     assert.deepStrictEqual(errors, [], 'no page errors');
     await page.close();
     console.log('ok: console drives avatar states');
 }
 
+async function checkHungCommand(browser) {
+    const page = await browser.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.clock.install();
+    await page.addInitScript(() => localStorage.setItem('nova_token', 'test-token'));
+    await page.route('**/command', () => {}); // never answers
+    await page.goto(URL);
+    await page.waitForFunction(() => window.NovaAvatar, null, { polling: 100 });
+    await page.fill('#console-input', 'halo?');
+    await page.click('#console-form button[type=submit]');
+    assert.strictEqual(await avatarState(page), 'thinking');
+    await page.clock.runFor(21000);
+    await page.waitForFunction(() => document.querySelector('#nova-avatar').dataset.state === 'error', null, { polling: 100, timeout: 3000 });
+    const log = await page.textContent('#console-logs');
+    assert.ok(log.includes('timed out'), `console explains the timeout: ${log}`);
+    assert.deepStrictEqual(errors, [], 'no page errors');
+    await page.close();
+    console.log('ok: hung command times out to error');
+}
+
 (async () => {
     const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
     const only = process.argv[2];
-    const checks = { checkRenders, checkFallback, checkTalkTiming, checkConsoleFlow };
+    const checks = { checkRenders, checkFallback, checkTalkTiming, checkConsoleFlow, checkHungCommand };
     try {
         for (const [name, fn] of Object.entries(checks)) {
             if (!only || only === name) await fn(browser);

@@ -27,4 +27,5 @@ nova.db-journal
 # Environment config files
 .env
 .env.local
-.env.*.local
+.env.*.localnova.db-shm
+nova.db-wal

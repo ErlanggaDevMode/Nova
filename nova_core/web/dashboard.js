@@ -242,6 +242,7 @@ function renderHistory(logs) {
 let avatarState = 'idle';
 let listenTimer = null;
 let commandSeq = 0;
+const COMMAND_TIMEOUT_MS = 20000;
 
 function setAvatarState(state, text) {
     avatarState = state;
@@ -276,11 +277,16 @@ consoleForm.addEventListener('submit', async (e) => {
         'Content-Type': 'application/json'
     };
 
+    // A hung request must not leave Nova "thinking" forever
+    const abort = new AbortController();
+    const abortTimer = setTimeout(() => abort.abort(), COMMAND_TIMEOUT_MS);
+
     try {
         const response = await fetch('/command', {
             method: 'POST',
             headers,
-            body: JSON.stringify({ raw_text: text, source_device_id: 'web_dashboard' })
+            body: JSON.stringify({ raw_text: text, source_device_id: 'web_dashboard' }),
+            signal: abort.signal
         });
 
         if (response.ok) {
@@ -293,8 +299,11 @@ consoleForm.addEventListener('submit', async (e) => {
             settle('error');
         }
     } catch (err) {
-        appendConsoleLog('Error: Core server unreachable.', 'error');
+        const msg = err.name === 'AbortError' ? 'Error: Command timed out.' : 'Error: Core server unreachable.';
+        appendConsoleLog(msg, 'error');
         settle('error');
+    } finally {
+        clearTimeout(abortTimer);
     }
 });
 
